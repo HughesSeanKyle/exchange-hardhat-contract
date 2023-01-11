@@ -62,8 +62,7 @@ contract Exchange is ERC20 {
             /*
             If the reserve is not empty, intake any user supplied value for
             `Ether` and determine according to the ratio how many `Crypto Dev` tokens
-            need to be supplied to prevent any large price impacts because of the additional
-            liquidity
+            need to be supplied to prevent any large price impacts because of the additional liquidity
         */
             // EthReserve should be the current ethBalance subtracted by the value of ether sent by the user
             // in the current `addLiquidity` call
@@ -72,6 +71,7 @@ contract Exchange is ERC20 {
         */
             uint256 ethReserve = ethBalance - msg.value;
             // Ratio should always be maintained so that there are no major price impacts when adding liquidity
+            // (The ratio is determined by the initial ratio set by the initial pair of assets provided in the if statement)
             // Ratio here is -> (cryptoDevTokenAmount user can add/cryptoDevTokenReserve in the contract) = (Eth Sent by the user/Eth Reserve in the contract);
             // So doing some maths, (cryptoDevTokenAmount user can add) = (Eth Sent by the user * cryptoDevTokenReserve /Eth Reserve);
             uint256 cryptoDevTokenAmount = (msg.value * cryptoDevTokenReserve) /
@@ -96,5 +96,40 @@ contract Exchange is ERC20 {
             _mint(msg.sender, liquidity);
         }
         return liquidity;
+    }
+
+    /**
+     * @dev Returns the amount Eth/Crypto Dev tokens that would be returned to the user
+     * in the swap
+     */
+    function removeLiquidity(uint256 _amount)
+        public
+        returns (uint256, uint256)
+    {
+        require(_amount > 0, "_amount should be greater than zero");
+        uint256 ethReserve = address(this).balance;
+        uint256 _totalSupply = totalSupply();
+        // The amount of Eth that would be sent back to the user is based
+        // on a ratio
+        // Ratio is -> (Eth sent back to the user) / (current Eth reserve)
+        // = (amount of LP tokens that user wants to withdraw) / (total supply of LP tokens)
+        // Then by some maths -> (Eth sent back to the user)
+        // = (current Eth reserve * amount of LP tokens that user wants to withdraw) / (total supply of LP tokens)
+        uint256 ethAmount = (ethReserve * _amount) / _totalSupply;
+        // The amount of Crypto Dev token that would be sent back to the user is based
+        // on a ratio
+        // Ratio is -> (Crypto Dev sent back to the user) / (current Crypto Dev token reserve)
+        // = (amount of LP tokens that user wants to withdraw) / (total supply of LP tokens)
+        // Then by some maths -> (Crypto Dev sent back to the user)
+        // = (current Crypto Dev token reserve * amount of LP tokens that user wants to withdraw) / (total supply of LP tokens)
+        uint256 cryptoDevTokenAmount = (getReserve() * _amount) / _totalSupply;
+        // Burn the sent LP tokens from the user's wallet because they are already sent to
+        // remove liquidity
+        _burn(msg.sender, _amount);
+        // Transfer `ethAmount` of Eth from the contract to the user's wallet
+        payable(msg.sender).transfer(ethAmount);
+        // Transfer `cryptoDevTokenAmount` of Crypto Dev tokens from the contract to the user's wallet
+        ERC20(cryptoDevTokenAddress).transfer(msg.sender, cryptoDevTokenAmount);
+        return (ethAmount, cryptoDevTokenAmount);
     }
 }
