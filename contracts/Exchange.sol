@@ -132,4 +132,28 @@ contract Exchange is ERC20 {
         ERC20(cryptoDevTokenAddress).transfer(msg.sender, cryptoDevTokenAmount);
         return (ethAmount, cryptoDevTokenAmount);
     }
+
+    /**
+     * @dev Returns the amount Eth/Crypto Dev tokens that would be returned to the user
+     * in the swap
+     */
+    function getAmountOfTokens(
+        uint256 inputAmount,
+        uint256 inputReserve,
+        uint256 outputReserve
+    ) public pure returns (uint256) {
+        require(inputReserve > 0 && outputReserve > 0, "invalid reserves");
+        // We are charging a fee of `1%`
+        // Input amount with fee = (input amount - (1*(input amount)/100)) = ((input amount)*99)/100
+        uint256 inputAmountWithFee = inputAmount * 99;
+        // Because we need to follow the concept of `XY = K` curve
+        // We need to make sure (x + Δx) * (y - Δy) = x * y
+        // So the final formula is Δy = (y * Δx) / (x + Δx)
+        // Δy in our case is `tokens to be received`
+        // Δx = ((input amount)*99)/100, x = inputReserve, y = outputReserve
+        // So by putting the values in the formulae you can get the numerator and denominator
+        uint256 numerator = inputAmountWithFee * outputReserve;
+        uint256 denominator = (inputReserve * 100) + inputAmountWithFee;
+        return numerator / denominator;
+    }
 }
